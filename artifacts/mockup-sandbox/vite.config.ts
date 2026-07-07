@@ -4,69 +4,43 @@ import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 import { mockupPreviewPlugin } from "./mockupPreviewPlugin";
 
-// Default values for deployment platforms
-const port = Number(process.env.PORT ?? 5173);
+const port = Number(process.env.PORT || 5173);
+const basePath = process.env.BASE_PATH || "/";
 
-if (Number.isNaN(port) || port <= 0) {
-  throw new Error(`Invalid PORT value: "${process.env.PORT}"`);
-}
+export default defineConfig({
+  base: basePath,
 
-const basePath = process.env.BASE_PATH ?? "/";
-
-export default defineConfig(async () => {
-  const plugins = [
+  plugins: [
     mockupPreviewPlugin(),
     react(),
     tailwindcss(),
-  ];
+  ],
 
-  // Enable Replit-only plugin only inside Replit development
-  if (
-    process.env.NODE_ENV !== "production" &&
-    process.env.REPL_ID
-  ) {
-    const { cartographer } = await import(
-      "@replit/vite-plugin-cartographer"
-    );
-
-    plugins.push(
-      cartographer({
-        root: path.resolve(import.meta.dirname, ".."),
-      })
-    );
-  }
-
-  return {
-    base: basePath,
-
-    plugins,
-
-    resolve: {
-      alias: {
-        "@": path.resolve(import.meta.dirname, "src"),
-      },
+  resolve: {
+    alias: {
+      "@": path.resolve(import.meta.dirname, "src"),
     },
+  },
 
-    root: path.resolve(import.meta.dirname),
+  root: path.resolve(import.meta.dirname),
 
-    build: {
-      outDir: path.resolve(import.meta.dirname, "dist"),
-      emptyOutDir: true,
+  build: {
+    outDir: path.resolve(import.meta.dirname, "dist"),
+    emptyOutDir: true,
+  },
+
+  server: {
+    port,
+    host: "0.0.0.0",
+    allowedHosts: true,
+    fs: {
+      strict: true,
     },
+  },
 
-    server: {
-      port,
-      host: "0.0.0.0",
-      allowedHosts: true,
-      fs: {
-        strict: true,
-      },
-    },
-
-    preview: {
-      port,
-      host: "0.0.0.0",
-      allowedHosts: true,
-    },
-  };
+  preview: {
+    port,
+    host: "0.0.0.0",
+    allowedHosts: true,
+  },
 });
