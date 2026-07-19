@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   Check,
@@ -7,6 +7,7 @@ import {
   Languages,
   PhoneCall,
   ShieldCheck,
+  Square,
   Volume2,
   X,
 } from "lucide-react";
@@ -18,39 +19,69 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { RESCUE_SCRIPTS, type RescueLanguage } from "@/data/rescueScripts";
+import type { IncidentCase } from "@/data/incidentCases";
 
 interface BharatRescueModeProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  incident: IncidentCase;
+  isLive: boolean;
 }
 
 export default function BharatRescueMode({
   open,
   onOpenChange,
+  incident,
+  isLive,
 }: BharatRescueModeProps) {
   const [language, setLanguage] = useState<RescueLanguage>("english");
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const script = RESCUE_SCRIPTS[language];
   const isComplete = completedSteps.length === script.steps.length;
   const progress = Math.round(
     (completedSteps.length / script.steps.length) * 100,
   );
 
+  const stopSpeaking = useCallback(() => {
+    const currentUtterance = utteranceRef.current;
+    if (currentUtterance) {
+      currentUtterance.onstart = null;
+      currentUtterance.onend = null;
+      currentUtterance.onerror = null;
+    }
+    utteranceRef.current = null;
+    setIsSpeaking(false);
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+  }, []);
+
   useEffect(() => {
     if (open) {
+      stopSpeaking();
       setCompletedSteps([]);
       setLanguage("english");
+    } else {
+      stopSpeaking();
     }
-  }, [open]);
+  }, [open, stopSpeaking]);
+
+  useEffect(() => {
+    return () => {
+      stopSpeaking();
+    };
+  }, [stopSpeaking]);
 
   useEffect(() => {
     if (isComplete) {
       toast.success(
-        "Bharat Rescue Protocol complete: victim safe and ₹2,50,000 protected.",
+        isLive
+          ? `Bharat Rescue Protocol complete: victim safe and ${incident.amountProtected} protected.`
+          : `Bharat Rescue drill complete: ${incident.amountProtected} scenario fully verified.`,
         { duration: 5000 },
       );
     }
-  }, [isComplete]);
+  }, [incident.amountProtected, isComplete, isLive]);
 
   const languageOptions = useMemo(
     () =>
@@ -69,22 +100,56 @@ export default function BharatRescueMode({
   };
 
   const readAloud = () => {
-    if (!("speechSynthesis" in window)) {
+    if (
+      !("speechSynthesis" in window) ||
+      !("SpeechSynthesisUtterance" in window)
+    ) {
       toast.error(
         "Voice playback is unavailable in this browser. The operator script remains visible.",
       );
       return;
     }
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(
-      `${script.title} ${script.spokenScript}`,
-    );
-    utterance.lang = script.locale;
-    utterance.rate = 0.92;
-    window.speechSynthesis.speak(utterance);
-    toast.info(
-      `${script.label} rescue script playing through the operator channel.`,
-    );
+    if (isSpeaking) {
+      stopSpeaking();
+      return;
+    }
+
+    stopSpeaking();
+    try {
+      const utterance = new SpeechSynthesisUtterance(
+        `${script.title} ${script.spokenScript}`,
+      );
+      utterance.lang = script.locale;
+      utterance.rate = 0.92;
+      utterance.onstart = () => {
+        if (utteranceRef.current === utterance) {
+          setIsSpeaking(true);
+          toast.info(`${script.label} rescue script playing on this device.`);
+        }
+      };
+      utterance.onend = () => {
+        if (utteranceRef.current === utterance) {
+          utteranceRef.current = null;
+          setIsSpeaking(false);
+        }
+      };
+      utterance.onerror = () => {
+        if (utteranceRef.current === utterance) {
+          utteranceRef.current = null;
+          setIsSpeaking(false);
+          toast.error(
+            "Voice playback could not start. The operator script remains visible.",
+          );
+        }
+      };
+      utteranceRef.current = utterance;
+      window.speechSynthesis.speak(utterance);
+    } catch {
+      stopSpeaking();
+      toast.error(
+        "Voice playback could not start. The operator script remains visible.",
+      );
+    }
   };
 
   return (
@@ -109,13 +174,13 @@ export default function BharatRescueMode({
             type="button"
             onClick={() => onOpenChange(false)}
             aria-label="Close Bharat Rescue Mode"
-            className="absolute right-4 top-4 rounded p-1.5 transition-colors hover:bg-white/[0.05]"
+            className="absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded transition-colors hover:bg-white/[0.05]"
             style={{ color: "var(--st-text-muted)" }}
           >
             <X size={14} />
           </button>
           <SheetHeader className="pr-8 text-left">
-            <div className="mb-2 flex items-center gap-2">
+            <div className="mb-2 flex flex-wrap items-center gap-2 pr-8">
               <div
                 className="flex h-7 w-7 items-center justify-center rounded"
                 style={{
@@ -132,18 +197,24 @@ export default function BharatRescueMode({
                 BHARAT RESCUE MODE · VICTIM SHIELD
               </span>
               <span
-                className="ml-auto flex items-center gap-1.5 rounded px-2 py-1 font-mono text-[8px] tracking-widest"
+                className="flex items-center gap-1.5 rounded px-2 py-1 font-mono text-[8px] tracking-widest sm:ml-auto"
                 style={{
-                  background: "var(--st-danger-bg)",
-                  border: "1px solid var(--st-danger-border)",
-                  color: "var(--st-danger)",
+                  background: isLive
+                    ? "var(--st-danger-bg)"
+                    : "var(--st-accent-bg)",
+                  border: `1px solid ${isLive ? "var(--st-danger-border)" : "var(--st-accent-border-mid)"}`,
+                  color: isLive ? "var(--st-danger)" : "var(--st-accent)",
                 }}
               >
                 <span
-                  className="h-1.5 w-1.5 animate-pulse rounded-full"
-                  style={{ background: "var(--st-danger)" }}
+                  className={`h-1.5 w-1.5 rounded-full ${isLive ? "animate-pulse" : ""}`}
+                  style={{
+                    background: isLive
+                      ? "var(--st-danger)"
+                      : "var(--st-accent)",
+                  }}
                 />
-                EXTRACTION WINDOW OPEN
+                {isLive ? "EXTRACTION WINDOW OPEN" : "RESPONSE DRILL READY"}
               </span>
             </div>
             <SheetTitle
@@ -156,8 +227,11 @@ export default function BharatRescueMode({
               className="font-mono text-[9px] tracking-wider"
               style={{ color: "var(--st-text-muted)" }}
             >
-              CASE SENTINEL-2026-IN492 · HIGH-CONFIDENCE COERCION PATTERN ·
-              HUMAN-GUIDED RESPONSE
+              CASE {incident.id} ·{" "}
+              {isLive
+                ? "HIGH-CONFIDENCE COERCION PATTERN"
+                : "FEATURED DEMO SCENARIO"}{" "}
+              · HUMAN-GUIDED RESPONSE
             </SheetDescription>
           </SheetHeader>
         </div>
@@ -170,7 +244,7 @@ export default function BharatRescueMode({
             {[
               {
                 label: "AMOUNT AT RISK",
-                value: "₹2,50,000",
+                value: incident.amountAtRisk,
                 color: isComplete ? "var(--st-text-muted)" : "var(--st-danger)",
               },
               {
@@ -179,27 +253,37 @@ export default function BharatRescueMode({
                 color: "var(--st-accent)",
               },
               {
-                label: isComplete ? "VICTIM STATUS" : "RESPONSE WINDOW",
-                value: isComplete ? "SAFE" : "03:42",
+                label: isComplete
+                  ? isLive
+                    ? "VICTIM STATUS"
+                    : "DRILL STATUS"
+                  : isLive
+                    ? "RESPONSE WINDOW"
+                    : "DRILL TARGET",
+                value: isComplete
+                  ? isLive
+                    ? "SAFE"
+                    : "READY"
+                  : incident.responseTime,
                 color: "var(--st-success)",
               },
             ].map((item) => (
               <div
                 key={item.label}
-                className="rounded p-3 text-center"
+                className="min-w-0 rounded p-2 text-center sm:p-3"
                 style={{
                   background: "var(--st-hover-row)",
                   border: "1px solid var(--st-border-subtle)",
                 }}
               >
                 <div
-                  className="font-mono text-lg font-semibold tabular-nums"
+                  className="break-words font-mono text-sm font-semibold tabular-nums sm:text-lg"
                   style={{ color: item.color }}
                 >
                   {item.value}
                 </div>
                 <div
-                  className="mt-1 font-mono text-[7px] tracking-widest"
+                  className="mt-1 font-mono text-[8px] tracking-widest"
                   style={{ color: "var(--st-text-faint)" }}
                 >
                   {item.label}
@@ -223,7 +307,10 @@ export default function BharatRescueMode({
                 <button
                   key={key}
                   type="button"
-                  onClick={() => setLanguage(key)}
+                  onClick={() => {
+                    stopSpeaking();
+                    setLanguage(key);
+                  }}
                   aria-pressed={language === key}
                   className="rounded py-2 font-mono text-[9px] font-semibold tracking-wider transition-all"
                   style={{
@@ -250,14 +337,16 @@ export default function BharatRescueMode({
               border: "1px solid var(--st-success-border)",
             }}
           >
-            <div className="mb-3 flex items-center justify-between">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <Headphones size={13} style={{ color: "var(--st-success)" }} />
                 <span
                   className="font-mono text-[9px] tracking-widest"
                   style={{ color: "var(--st-success)" }}
                 >
-                  SPEAK TO THE VICTIM NOW
+                  {isLive
+                    ? "SPEAK TO THE VICTIM NOW"
+                    : "OPERATOR RESPONSE SCRIPT"}
                 </span>
               </div>
               <button
@@ -269,7 +358,8 @@ export default function BharatRescueMode({
                   border: "1px solid var(--st-accent-border-mid)",
                 }}
               >
-                <Volume2 size={10} /> READ ALOUD
+                {isSpeaking ? <Square size={9} /> : <Volume2 size={10} />}
+                {isSpeaking ? "STOP AUDIO" : "READ ALOUD"}
               </button>
             </div>
             <div
@@ -308,6 +398,7 @@ export default function BharatRescueMode({
                 </h3>
               </div>
               <span
+                aria-live="polite"
                 className="font-mono text-[9px] tabular-nums"
                 style={{
                   color: isComplete ? "var(--st-success)" : "var(--st-warning)",
@@ -395,6 +486,11 @@ export default function BharatRescueMode({
               </span>
             </div>
             <div
+              role="progressbar"
+              aria-label="Rescue protocol completion"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={progress}
               className="h-1.5 overflow-hidden rounded-full"
               style={{ background: "var(--st-border)" }}
             >
@@ -413,6 +509,8 @@ export default function BharatRescueMode({
           {isComplete && (
             <section
               data-testid="rescue-complete"
+              role="status"
+              aria-live="polite"
               className="rounded p-4 text-center fade-in"
               style={{
                 background: "var(--st-success-bg)",
@@ -428,14 +526,18 @@ export default function BharatRescueMode({
                 className="font-mono text-[10px] font-semibold tracking-widest"
                 style={{ color: "var(--st-success)" }}
               >
-                VICTIM SAFE · ₹2,50,000 PROTECTED
+                {isLive
+                  ? `VICTIM SAFE · ${incident.amountProtected} PROTECTED`
+                  : `PROTOCOL READY · ${incident.amountProtected} SCENARIO VERIFIED`}
               </div>
               <div
                 className="mt-1 font-mono text-[8px]"
                 style={{ color: "var(--st-text-muted)" }}
               >
-                ZERO FUNDS TRANSFERRED · EVIDENCE PRESERVED · CASE
-                SENTINEL-2026-IN492
+                {isLive
+                  ? `${incident.outcome} · EVIDENCE PRESERVED`
+                  : "TRAINING MODE · EVIDENCE WORKFLOW VERIFIED"}{" "}
+                · CASE {incident.id}
               </div>
             </section>
           )}

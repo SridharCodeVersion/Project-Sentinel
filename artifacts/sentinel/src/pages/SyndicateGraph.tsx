@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { Network, Download, Lock, Fingerprint } from 'lucide-react';
 import { useIncidentCase } from '@/contexts/IncidentCaseContext';
+import { FEATURED_INCIDENT, GRAPH_INCIDENTS, type IncidentCase } from '@/data/incidentCases';
 
 interface GraphNode {
   id: string;
@@ -39,7 +40,7 @@ const NODES: GraphNode[] = [
   { id: 'mule3', label: 'MULE ACC', sublabel: 'SBI #7741', x: 640, y: 420, type: 'mule',
     campaigns: ['jamtara', 'all'], amount: '₹2,80,000', institution: 'SBI — Jamtara Branch', lastSeen: '18:39:55 IST' },
   { id: 'target1', label: 'TARGET', sublabel: 'S. Iyer, Bengaluru', x: 180, y: 420, type: 'target',
-    campaigns: ['mewat', 'all'], institution: 'Victim — Retired Govt Employee', amount: '₹7,00,000', lastSeen: '18:52:41 IST' },
+    campaigns: ['mewat', 'all'], institution: 'Victim — Retired Govt Employee', amount: '₹2,50,000', lastSeen: '18:52:41 IST' },
   { id: 'target2', label: 'TARGET', sublabel: 'R. Patel, Ahmedabad', x: 80, y: 200, type: 'target',
     campaigns: ['mewat', 'all'], institution: 'Victim — Senior Citizen', amount: '₹3,20,000', lastSeen: '18:49:12 IST' },
   { id: 'crypto1', label: 'CRYPTO WALLET', sublabel: 'bc1qXX...4a2f', x: 760, y: 380, type: 'crypto',
@@ -54,7 +55,7 @@ const EDGES: GraphEdge[] = [
   { from: 'cmd1', to: 'voip2', label: 'DIRECTIVE', campaigns: ['mewat', 'cross-border', 'all'] },
   { from: 'voip1', to: 'target1', label: 'SCAM CALL', campaigns: ['mewat', 'all'] },
   { from: 'voip2', to: 'target2', label: 'SCAM CALL', campaigns: ['mewat', 'all'] },
-  { from: 'target1', to: 'mule1', label: 'ROUTED: ₹4,50,000', campaigns: ['mewat', 'all'] },
+  { from: 'target1', to: 'mule1', label: 'ROUTED: ₹2,50,000', campaigns: ['mewat', 'all'] },
   { from: 'target2', to: 'mule2', label: 'ROUTED: ₹1,20,000', campaigns: ['mewat', 'all'] },
   { from: 'target1', to: 'mule3', label: 'ROUTED: ₹2,80,000', campaigns: ['jamtara', 'all'] },
   { from: 'mule1', to: 'crypto1', label: 'LAYERING', campaigns: ['cross-border', 'all'] },
@@ -77,26 +78,59 @@ const FILTERS = [
   { id: 'mewat', label: 'MEWAT EXTORTION CAMPAIGN 04' },
   { id: 'cross-border', label: 'CROSS-BORDER CRYPTO FOOTPRINTS' },
   { id: 'jamtara', label: 'JAMTARA TELECOM FRAUD RING' },
-];
+] as const;
 
 export default function SyndicateGraph() {
-  const { openIncident } = useIncidentCase();
-  const [activeFilter, setActiveFilter] = useState('all');
+  const { incident, openIncident } = useIncidentCase();
+  const [activeFilter, setActiveFilter] = useState<IncidentCase['syndicateFilter']>(() => incident.syndicateFilter);
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [exportProgress, setExportProgress] = useState<number | null>(null);
   const [exportDone, setExportDone] = useState(false);
+  const exportIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const isNodeActive = (node: GraphNode) => node.campaigns.includes(activeFilter);
   const isEdgeActive = (edge: GraphEdge) => edge.campaigns.includes(activeFilter);
 
-  const handleExport = () => {
-    setExportProgress(0);
+  const resolveGraphIncident = (node?: GraphNode | null): IncidentCase => {
+    if (!node && activeFilter === incident.syndicateFilter) return incident;
+    if (activeFilter === 'jamtara' || (node?.campaigns.includes('jamtara') && !node.campaigns.includes('mewat'))) return GRAPH_INCIDENTS.jamtara;
+    if (activeFilter === 'cross-border' || node?.type === 'crypto' || node?.type === 'hawala') return GRAPH_INCIDENTS['cross-border'];
+    return FEATURED_INCIDENT;
+  };
+
+  const currentGraphIncident = resolveGraphIncident(selectedNode);
+
+  const resetExport = () => {
+    if (exportIntervalRef.current) {
+      clearInterval(exportIntervalRef.current);
+      exportIntervalRef.current = null;
+    }
+    setExportProgress(null);
     setExportDone(false);
-    const interval = setInterval(() => {
+  };
+
+  const selectFilter = (filter: IncidentCase['syndicateFilter']) => {
+    resetExport();
+    setActiveFilter(filter);
+    setSelectedNode(null);
+  };
+
+  const selectNode = (node: GraphNode | null) => {
+    if (selectedNode?.id !== node?.id) resetExport();
+    setSelectedNode(node);
+  };
+
+  const handleExport = () => {
+    resetExport();
+    setExportProgress(0);
+    exportIntervalRef.current = setInterval(() => {
       setExportProgress(prev => {
         if (prev === null) return 0;
         if (prev >= 100) {
-          clearInterval(interval);
+          if (exportIntervalRef.current) {
+            clearInterval(exportIntervalRef.current);
+            exportIntervalRef.current = null;
+          }
           setExportDone(true);
           return 100;
         }
@@ -104,6 +138,12 @@ export default function SyndicateGraph() {
       });
     }, 150);
   };
+
+  useEffect(() => {
+    return () => {
+      if (exportIntervalRef.current) clearInterval(exportIntervalRef.current);
+    };
+  }, []);
 
   // Compute midpoints for edge labels
   const getEdgeMid = (from: GraphNode, to: GraphNode) => ({
@@ -126,7 +166,7 @@ export default function SyndicateGraph() {
           <button
             type="button"
             data-testid="open-incident-360"
-            onClick={() => openIncident('syndicate-graph')}
+            onClick={() => openIncident('syndicate-graph', currentGraphIncident)}
             className="flex items-center gap-2 rounded px-3 py-1.5 font-mono text-[9px] tracking-widest transition-all hover:brightness-125"
             style={{ background: 'var(--st-accent-bg)', border: '1px solid var(--st-accent-border-mid)', color: 'var(--st-accent)' }}
           >
@@ -144,7 +184,8 @@ export default function SyndicateGraph() {
         {FILTERS.map(f => (
           <button
             key={f.id}
-            onClick={() => setActiveFilter(f.id)}
+            onClick={() => selectFilter(f.id)}
+            aria-pressed={activeFilter === f.id}
             className="px-3 py-1 rounded font-mono text-[9px] tracking-widest transition-all"
             style={{
               background: activeFilter === f.id ? 'var(--st-accent-bg-soft)' : 'transparent',
@@ -221,7 +262,16 @@ export default function SyndicateGraph() {
                 <g key={node.id}
                   opacity={active ? 1 : 0.08}
                   style={{ cursor: 'pointer', transition: 'opacity 0.4s ease' }}
-                  onClick={() => active && setSelectedNode(node)}>
+                  onClick={() => active && selectNode(node)}
+                  onKeyDown={event => {
+                    if (active && (event.key === 'Enter' || event.key === ' ')) {
+                      event.preventDefault();
+                      selectNode(node);
+                    }
+                  }}
+                  role="button"
+                  tabIndex={active ? 0 : -1}
+                  aria-label={`Open details for ${node.label} ${node.sublabel}`}>
                   {/* Glow ring if selected */}
                   {isSelected && active && (
                     <circle cx={node.x} cy={node.y} r={r + 8}
@@ -269,7 +319,7 @@ export default function SyndicateGraph() {
                 <span className="font-mono text-[9px] font-semibold" style={{ color: NODE_COLORS[selectedNode.type] }}>
                   {selectedNode.label}: {selectedNode.sublabel}
                 </span>
-                <button onClick={() => setSelectedNode(null)}
+                <button onClick={() => selectNode(null)}
                   className="text-[10px] font-mono" style={{ color: 'var(--st-text-faint)' }}>✕</button>
               </div>
               <div className="space-y-1 font-mono text-[8px]">
@@ -280,13 +330,13 @@ export default function SyndicateGraph() {
               </div>
               <div className="flex gap-1.5 pt-1">
                 <button
-                  onClick={() => { toast.success(`${selectedNode.label} (${selectedNode.sublabel}) flagged for Court Docket SENTINEL-2026-IN492. FIU-IND notified.`); setSelectedNode(null); }}
+                  onClick={() => { toast.success(`${selectedNode.label} (${selectedNode.sublabel}) flagged for Court Docket ${currentGraphIncident.id}. FIU-IND notified.`); selectNode(null); }}
                   className="flex-1 py-1 rounded font-mono text-[8px] tracking-widest"
                   style={{ background: 'var(--st-accent-bg-soft)', color: 'var(--st-accent)', border: '1px solid var(--st-accent-border-mid)' }}>
                   FLAG FOR DOCKET
                 </button>
                 <button
-                  onClick={() => { toast.error(`Asset freeze order issued for ${selectedNode.sublabel}. ED Section 5 PMLA action initiated.`); setSelectedNode(null); }}
+                  onClick={() => { toast.error(`Asset freeze order issued for ${selectedNode.sublabel}. ED Section 5 PMLA action initiated.`); selectNode(null); }}
                   className="flex-1 py-1 rounded font-mono text-[8px] tracking-widest"
                   style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--st-danger)', border: '1px solid rgba(239,68,68,0.25)' }}>
                   FREEZE ASSET
@@ -294,7 +344,7 @@ export default function SyndicateGraph() {
               </div>
               <button
                 type="button"
-                onClick={() => openIncident('syndicate-graph')}
+                onClick={() => openIncident('syndicate-graph', currentGraphIncident)}
                 className="flex w-full items-center justify-center gap-1.5 rounded py-1.5 font-mono text-[8px] tracking-widest"
                 style={{ background: 'var(--st-accent-bg)', color: 'var(--st-accent)', border: '1px solid var(--st-accent-border-mid)' }}
               >
@@ -316,8 +366,8 @@ export default function SyndicateGraph() {
         <div className="grid grid-cols-3 gap-3">
           <div className="col-span-2 space-y-1.5">
             {[
-              { label: 'INCIDENT DOCKET ID', value: 'SENTINEL-2026-IN492', color: 'var(--st-accent)' },
-              { label: 'CRYPTOGRAPHIC CHAIN HASH', value: 'SHA256: 4b89a1f2c3d4e5f6...c392f4e', color: 'var(--st-text-label)' },
+              { label: 'INCIDENT DOCKET ID', value: currentGraphIncident.id, color: 'var(--st-accent)' },
+              { label: 'CRYPTOGRAPHIC CHAIN HASH', value: currentGraphIncident.evidenceHash.replace(' · ', ': '), color: 'var(--st-text-label)' },
               { label: 'EVIDENCE INTEGRITY', value: 'VERIFIED · 07-JUL-2026 18:42:10 IST', color: 'var(--st-success)' },
               { label: 'CUSTODIAN', value: 'FIU-IND NODE 7 · SR. ANALYST M.K. VERMA', color: 'var(--st-text-label)' },
             ].map(({ label, value, color }) => (
@@ -339,7 +389,7 @@ export default function SyndicateGraph() {
             ) : exportDone ? (
               <div className="text-center font-mono text-[8px] space-y-0.5">
                 <div style={{ color: 'var(--st-success)' }}>DOWNLOAD COMPLETE</div>
-                <div style={{ color: 'var(--st-text-muted)' }}>SENTINEL-2026-IN492.zip</div>
+                <div style={{ color: 'var(--st-text-muted)' }}>{currentGraphIncident.id}.zip</div>
                 <div style={{ color: 'var(--st-text-faint)' }}>847 KB · AES-256 ENCRYPTED</div>
               </div>
             ) : (

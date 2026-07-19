@@ -81,13 +81,13 @@ export default function Incident360Drawer() {
             type="button"
             onClick={() => setIsOpen(false)}
             aria-label="Close Incident 360"
-            className="absolute right-4 top-4 rounded p-1.5 transition-colors hover:bg-white/[0.05]"
+            className="absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded transition-colors hover:bg-white/[0.05]"
             style={{ color: "var(--st-text-muted)" }}
           >
             <X size={14} />
           </button>
           <SheetHeader className="pr-8 text-left">
-            <div className="mb-2 flex items-center gap-2">
+            <div className="mb-2 flex flex-wrap items-center gap-2 pr-8">
               <div
                 className="flex h-7 w-7 items-center justify-center rounded"
                 style={{
@@ -104,7 +104,7 @@ export default function Incident360Drawer() {
                 INCIDENT 360 · UNIFIED CASE VIEW
               </span>
               <span
-                className="ml-auto rounded px-2 py-1 font-mono text-[8px] tracking-widest"
+                className="rounded px-2 py-1 font-mono text-[8px] tracking-widest sm:ml-auto"
                 style={{
                   background: "var(--st-danger-bg)",
                   border: "1px solid var(--st-danger-border)",
@@ -139,7 +139,7 @@ export default function Incident360Drawer() {
 
         <div className="space-y-4 p-5">
           <section
-            className="grid grid-cols-4 gap-2"
+            className="grid grid-cols-2 gap-2 sm:grid-cols-4"
             aria-label="Case impact summary"
           >
             {[
@@ -211,15 +211,13 @@ export default function Incident360Drawer() {
                   className="font-mono text-[10px] font-semibold tracking-widest"
                   style={{ color: "var(--st-success)" }}
                 >
-                  {incident.status} · ZERO FUNDS TRANSFERRED
+                  {incident.status} · {incident.outcome}
                 </div>
                 <div
                   className="mt-1 text-[10px] leading-relaxed"
                   style={{ color: "var(--st-text-muted)" }}
                 >
-                  {incident.victim}. The threat channel, payment destination,
-                  and command infrastructure are linked under one verified
-                  docket.
+                  {incident.summary}
                 </div>
               </div>
             </div>
@@ -237,10 +235,11 @@ export default function Incident360Drawer() {
                 className="font-mono text-[8px]"
                 style={{ color: "var(--st-success)" }}
               >
-                4/4 LINKS VERIFIED
+                {incident.verifiedLinks}/{incident.entities.length} LINKS
+                VERIFIED
               </span>
             </div>
-            <div className="grid grid-cols-4 gap-1.5">
+            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
               {incident.entities.map((entity, index) => {
                 const Icon = ENTITY_ICONS[index] ?? CircleDot;
                 const color = TONE_COLOR[entity.tone];
@@ -362,7 +361,7 @@ export default function Incident360Drawer() {
           </section>
 
           <section
-            className="flex items-center justify-between rounded px-3 py-2"
+            className="flex flex-col items-stretch gap-3 rounded px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
             style={{
               background: "var(--st-panel)",
               border: "1px solid var(--st-border-subtle)",
@@ -386,7 +385,7 @@ export default function Incident360Drawer() {
               type="button"
               onClick={copyDocketId}
               aria-label="Copy incident docket ID"
-              className="flex items-center gap-1.5 rounded px-2.5 py-1.5 font-mono text-[8px] tracking-widest transition-colors hover:bg-white/[0.04]"
+              className="flex items-center justify-center gap-1.5 rounded px-2.5 py-1.5 font-mono text-[8px] tracking-widest transition-colors hover:bg-white/[0.04]"
               style={{
                 color: "var(--st-accent)",
                 border: "1px solid var(--st-accent-border-mid)",
@@ -396,32 +395,40 @@ export default function Incident360Drawer() {
             </button>
           </section>
 
-          <div className="grid grid-cols-2 gap-2 pb-2">
-            <button
-              type="button"
-              onClick={() => navigateTo("/intercept")}
-              className="flex items-center justify-center gap-2 rounded py-2.5 font-mono text-[9px] tracking-widest transition-all hover:brightness-125"
-              style={{
-                background: "var(--st-danger-bg)",
-                border: "1px solid var(--st-danger-border)",
-                color: "var(--st-danger)",
-              }}
-            >
-              <Radio size={11} /> OPEN LIVE INTERCEPT
-            </button>
-            <button
-              type="button"
-              onClick={() => navigateTo("/syndicate")}
-              className="flex items-center justify-center gap-2 rounded py-2.5 font-mono text-[9px] tracking-widest transition-all hover:brightness-125"
-              style={{
-                background: "var(--st-accent-bg)",
-                border: "1px solid var(--st-accent-border-mid)",
-                color: "var(--st-accent)",
-              }}
-            >
-              <Network size={11} /> TRACE SYNDICATE
-            </button>
-          </div>
+          {(source !== "syndicate-graph" ||
+            incident.liveInterceptSupported) && (
+            <div className="flex flex-col gap-2 pb-2 sm:flex-row">
+              {source !== "live-intercept" &&
+                incident.liveInterceptSupported && (
+                  <button
+                    type="button"
+                    onClick={() => navigateTo("/intercept")}
+                    className="flex flex-1 items-center justify-center gap-2 rounded py-2.5 font-mono text-[9px] tracking-widest transition-all hover:brightness-125"
+                    style={{
+                      background: "var(--st-danger-bg)",
+                      border: "1px solid var(--st-danger-border)",
+                      color: "var(--st-danger)",
+                    }}
+                  >
+                    <Radio size={11} /> OPEN LIVE INTERCEPT
+                  </button>
+                )}
+              {source !== "syndicate-graph" && (
+                <button
+                  type="button"
+                  onClick={() => navigateTo("/syndicate")}
+                  className="flex flex-1 items-center justify-center gap-2 rounded py-2.5 font-mono text-[9px] tracking-widest transition-all hover:brightness-125"
+                  style={{
+                    background: "var(--st-accent-bg)",
+                    border: "1px solid var(--st-accent-border-mid)",
+                    color: "var(--st-accent)",
+                  }}
+                >
+                  <Network size={11} /> TRACE SYNDICATE
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </SheetContent>
     </Sheet>

@@ -16,7 +16,7 @@ interface IncidentCaseContextValue {
   incident: IncidentCase;
   source: IncidentSource;
   isOpen: boolean;
-  openIncident: (source: IncidentSource) => void;
+  openIncident: (source: IncidentSource, incident?: IncidentCase) => void;
   setIsOpen: (open: boolean) => void;
 }
 
@@ -25,23 +25,28 @@ const IncidentCaseContext = createContext<IncidentCaseContextValue | undefined>(
 );
 
 export function IncidentCaseProvider({ children }: { children: ReactNode }) {
+  const [incident, setIncident] = useState<IncidentCase>(FEATURED_INCIDENT);
   const [source, setSource] = useState<IncidentSource>("command-center");
   const [isOpen, setIsOpen] = useState(false);
 
-  const openIncident = useCallback((nextSource: IncidentSource) => {
-    setSource(nextSource);
-    setIsOpen(true);
-  }, []);
+  const openIncident = useCallback(
+    (nextSource: IncidentSource, nextIncident?: IncidentCase) => {
+      if (nextIncident) setIncident(nextIncident);
+      setSource(nextSource);
+      setIsOpen(true);
+    },
+    [],
+  );
 
   const value = useMemo(
     () => ({
-      incident: FEATURED_INCIDENT,
+      incident,
       source,
       isOpen,
       openIncident,
       setIsOpen,
     }),
-    [source, isOpen, openIncident],
+    [incident, source, isOpen, openIncident],
   );
 
   return (

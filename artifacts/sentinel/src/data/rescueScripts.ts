@@ -42,7 +42,7 @@ export const RESCUE_SCRIPTS: Record<RescueLanguage, RescueScript> = {
   },
   hinglish: {
     label: "HINGLISH",
-    locale: "hi-IN",
+    locale: "en-IN",
     title: "Aap safe hain. Koi paisa transfer mat kijiye.",
     spokenScript:
       "Video call abhi disconnect kijiye. Paise transfer ya OTP share mat kijiye. Police, CBI ya court kabhi security deposit nahi maangti. Hum aapke saath 1930 cyber helpline par call kar rahe hain.",
