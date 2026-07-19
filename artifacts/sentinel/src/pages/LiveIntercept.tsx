@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
-import { Radio, AlertTriangle, Clock, Zap, Upload, Play, Pause, RefreshCw, FileAudio } from 'lucide-react';
+import { Radio, AlertTriangle, Clock, Zap, Upload, Play, Pause, RefreshCw, FileAudio, Fingerprint, ShieldCheck } from 'lucide-react';
+import BharatRescueMode from '@/components/BharatRescueMode';
+import { useIncidentCase } from '@/contexts/IncidentCaseContext';
 
 interface TranscriptLine {
   id: string;
@@ -33,6 +35,8 @@ interface Props {
 }
 
 export default function LiveIntercept({ deepfakeSensorWeight }: Props) {
+  const { openIncident } = useIncidentCase();
+  const [isRescueModeOpen, setIsRescueModeOpen] = useState(false);
   // Start in Standby mode with only a system standby log message
   const [visibleLines, setVisibleLines] = useState<TranscriptLine[]>([
     { id: 'system-standby', speaker: 'SYSTEM', text: 'I4C NLP Parser v4.2 initialized. Standby mode active. Awaiting threat audio uplink...', flag: 'AWAITING UPLINK PACKET', flagType: 'system' }
@@ -190,6 +194,24 @@ export default function LiveIntercept({ deepfakeSensorWeight }: Props) {
           </span>
         </div>
         <div className="flex items-center gap-4">
+          <button
+            type="button"
+            data-testid="open-incident-360"
+            onClick={() => openIncident('live-intercept')}
+            className="flex items-center gap-2 rounded px-3 py-1.5 font-mono text-[9px] tracking-widest transition-all hover:brightness-125"
+            style={{ background: 'var(--st-accent-bg)', border: '1px solid var(--st-accent-border-mid)', color: 'var(--st-accent)' }}
+          >
+            <Fingerprint size={11} /> CASE 360
+          </button>
+          <button
+            type="button"
+            data-testid="open-rescue-mode"
+            onClick={() => setIsRescueModeOpen(true)}
+            className="flex items-center gap-2 rounded px-3 py-1.5 font-mono text-[9px] tracking-widest transition-all hover:brightness-125"
+            style={{ background: 'var(--st-success-bg)', border: '1px solid var(--st-success-border)', color: 'var(--st-success)' }}
+          >
+            <ShieldCheck size={11} /> BHARAT RESCUE MODE
+          </button>
           <div className="flex items-center gap-2 px-3 py-1 rounded"
             style={{ 
               background: audioUrl ? 'var(--st-danger-bg)' : 'var(--st-inactive-bg)', 
@@ -497,6 +519,7 @@ export default function LiveIntercept({ deepfakeSensorWeight }: Props) {
           </div>
         </div>
       </div>
+      <BharatRescueMode open={isRescueModeOpen} onOpenChange={setIsRescueModeOpen} />
     </div>
   );
 }

@@ -12,6 +12,8 @@ import FICNAudit from '@/pages/FICNAudit';
 import SyndicateGraph from '@/pages/SyndicateGraph';
 import SystemSettings from '@/pages/SystemSettings';
 import NotFound from '@/pages/not-found';
+import Incident360Drawer from '@/components/Incident360Drawer';
+import { IncidentCaseProvider } from '@/contexts/IncidentCaseContext';
 // @ts-ignore
 import AuthPortal from '@/components/AuthPortal';
 
@@ -66,6 +68,7 @@ function AppShell() {
           },
         }}
       />
+      <Incident360Drawer />
     </div>
   );
 }
@@ -78,7 +81,9 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
-          <AppShell />
+          <IncidentCaseProvider>
+            <AppShell />
+          </IncidentCaseProvider>
         </WouterRouter>
       </TooltipProvider>
     </QueryClientProvider>

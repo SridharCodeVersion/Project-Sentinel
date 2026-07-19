@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { Network, Download, Lock } from 'lucide-react';
+import { Network, Download, Lock, Fingerprint } from 'lucide-react';
+import { useIncidentCase } from '@/contexts/IncidentCaseContext';
 
 interface GraphNode {
   id: string;
@@ -79,6 +80,7 @@ const FILTERS = [
 ];
 
 export default function SyndicateGraph() {
+  const { openIncident } = useIncidentCase();
   const [activeFilter, setActiveFilter] = useState('all');
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [exportProgress, setExportProgress] = useState<number | null>(null);
@@ -120,8 +122,19 @@ export default function SyndicateGraph() {
             SYNDICATE NETWORK GRAPH · COURT-ADMISSIBLE TOPOLOGY ANALYSIS
           </span>
         </div>
-        <div className="font-mono text-[9px]" style={{ color: 'var(--st-text-faint)' }}>
-          {NODES.length} NODES · {EDGES.length} EDGES MAPPED
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            data-testid="open-incident-360"
+            onClick={() => openIncident('syndicate-graph')}
+            className="flex items-center gap-2 rounded px-3 py-1.5 font-mono text-[9px] tracking-widest transition-all hover:brightness-125"
+            style={{ background: 'var(--st-accent-bg)', border: '1px solid var(--st-accent-border-mid)', color: 'var(--st-accent)' }}
+          >
+            <Fingerprint size={11} /> INCIDENT 360
+          </button>
+          <div className="font-mono text-[9px]" style={{ color: 'var(--st-text-faint)' }}>
+            {NODES.length} NODES · {EDGES.length} EDGES MAPPED
+          </div>
         </div>
       </div>
 
@@ -279,6 +292,14 @@ export default function SyndicateGraph() {
                   FREEZE ASSET
                 </button>
               </div>
+              <button
+                type="button"
+                onClick={() => openIncident('syndicate-graph')}
+                className="flex w-full items-center justify-center gap-1.5 rounded py-1.5 font-mono text-[8px] tracking-widest"
+                style={{ background: 'var(--st-accent-bg)', color: 'var(--st-accent)', border: '1px solid var(--st-accent-border-mid)' }}
+              >
+                <Fingerprint size={9} /> OPEN UNIFIED CASE
+              </button>
             </div>
           )}
         </div>
