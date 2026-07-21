@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { toast } from 'sonner';
-import { AlertTriangle, Clock, MapPin, Activity, Filter, Wifi, WifiOff, Loader2 } from 'lucide-react';
+import { AlertTriangle, Clock, MapPin, Activity, Filter, Wifi, WifiOff, Loader2, Fingerprint } from 'lucide-react';
+import { useIncidentCase } from '@/contexts/IncidentCaseContext';
+import { createIncidentFromHotspot } from '@/data/incidentCases';
 
 /* ─── Types (mirrored from API) ─── */
 interface Hotspot {
@@ -148,6 +150,7 @@ function MapSkeleton() {
    Main Component
 ───────────────────────────────────────────────────────────────── */
 export default function CommandCenter() {
+  const { openIncident } = useIncidentCase();
   const [activeTab, setActiveTab] = useState<'map' | 'log'>('map');
   const [hotspots, setHotspots] = useState<Hotspot[]>([]);
   const [selectedHotspot, setSelectedHotspot] = useState<Hotspot | null>(null);
@@ -253,6 +256,11 @@ export default function CommandCenter() {
     ? incidents
     : incidents.filter(i => i.severity === severityFilter);
 
+  const openSelectedIncident = () => {
+    if (!selectedHotspot) return;
+    openIncident('command-center', createIncidentFromHotspot(selectedHotspot));
+  };
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* ── Page header ── */}
@@ -265,6 +273,17 @@ export default function CommandCenter() {
           </span>
         </div>
         <div className="flex items-center gap-4">
+          <button
+            type="button"
+            data-testid="open-incident-360"
+            onClick={openSelectedIncident}
+            disabled={!selectedHotspot}
+            aria-label={selectedHotspot ? `Open Incident 360 for ${selectedHotspot.name}` : 'Incident 360 unavailable while hotspots load'}
+            className="flex items-center gap-2 rounded px-3 py-1.5 font-mono text-[9px] tracking-widest transition-all hover:brightness-125 disabled:cursor-not-allowed disabled:opacity-40"
+            style={{ background: 'var(--st-accent-bg)', border: '1px solid var(--st-accent-border-mid)', color: 'var(--st-accent)' }}
+          >
+            <Fingerprint size={11} /> INCIDENT 360
+          </button>
           {/* ── Live Network Sync Heartbeat ── */}
           <SyncIndicator status={syncStatus} lastSync={lastSync} />
           <div className="flex items-center gap-2">
@@ -380,6 +399,15 @@ export default function CommandCenter() {
                         return (
                           <g key={hs.id}
                             onClick={() => setSelectedHotspot(hs)}
+                            onKeyDown={event => {
+                              if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault();
+                                setSelectedHotspot(hs);
+                              }
+                            }}
+                            role="button"
+                            tabIndex={0}
+                            aria-label={`Select ${hs.name} hotspot`}
                             style={{ cursor: 'pointer' }}>
                             {/* Outer pulse ring */}
                             <circle cx={hs.x} cy={hs.y} r={r * 2.5}
@@ -626,6 +654,15 @@ export default function CommandCenter() {
                     className="w-full py-2 rounded font-mono text-[10px] tracking-widest transition-all"
                     style={{ background: 'var(--st-toggle-bg)', color: 'var(--st-accent)', border: '1px solid var(--st-toggle-border)' }}>
                     FLAG FOR MHA REVIEW
+                  </button>
+                  <button
+                    type="button"
+                    onClick={openSelectedIncident}
+                    aria-label={`Open Incident 360 for ${selectedHotspot.name}`}
+                    className="flex w-full items-center justify-center gap-2 rounded py-2 font-mono text-[10px] tracking-widest transition-all hover:brightness-125"
+                    style={{ background: 'var(--st-accent-bg)', color: 'var(--st-accent)', border: '1px solid var(--st-accent-border-mid)' }}
+                  >
+                    <Fingerprint size={11} /> OPEN INCIDENT 360
                   </button>
                 </div>
               </div>
